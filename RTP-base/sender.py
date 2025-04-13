@@ -5,14 +5,15 @@ import struct
 from utils import PacketHeader, compute_checksum
 
 
-    #TODO: Divide the message into chunks according to max_packet_size.
+    
 def split_message(message, max_packet_size):
+    """TODO: Divide the message into chunks according to max_packet_size."""
     chunks = [message[i:i + max_packet_size] for i in range(0, len(message), max_packet_size)]
     return chunks
 
 
-    #TODO: Create packet
 def create_packet(seq_num, data, packet_type):
+    """TODO: Create packet"""
     if isinstance(data, str):
         data = data.encode()
     pkt_header = PacketHeader(type=packet_type, seq_num=seq_num, length=len(data))
@@ -20,8 +21,8 @@ def create_packet(seq_num, data, packet_type):
     return pkt_header / data
 
 
-    #TODO: Wait for the ACK from the receiver. If time's out, return None. 
 def wait_for_ack(socket, timeout=0.5):
+    """TODO: Wait for the ACK from the receiver. If time's out, return None. """
     try:
         socket.settimeout(timeout)
         data, _ = socket.recvfrom(1024) #data: be received from socket; _: IP and port of the receiver
@@ -31,8 +32,8 @@ def wait_for_ack(socket, timeout=0.5):
         return None
     
 
-    #TODO: Retransmit when timeout happens.
 def retransmit(s, window_start, window_end, chunks, seq_num, receiver_ip, receiver_port):
+    """TODO: Retransmit when timeout happens."""
     for i in range(window_start, window_end):
         packet = create_packet(seq_num + i - window_start, chunks[i], packet_type=2)
         s.sendto(bytes(packet), (receiver_ip, receiver_port))
@@ -40,8 +41,8 @@ def retransmit(s, window_start, window_end, chunks, seq_num, receiver_ip, receiv
     print("Retransmitting due to timeout")
 
 
-    #TODO: Send start/end message.
 def send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label):
+    """TODO: Send start/end message."""
     packet = create_packet(seq_num, data, packet_type=packet_type)
     s.sendto(bytes(packet), (receiver_ip, receiver_port))
 
@@ -58,8 +59,8 @@ def send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, dat
         print(f"No ACK for {label} packet.")
 
 
-    #TODO: Open socket and send message from sys.stdin.
 def sender(receiver_ip, receiver_port, window_size):
+    """TODO: Open socket and send message from sys.stdin."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     send_control_packet(s, 0, receiver_ip, receiver_port, packet_type=0, data="START", label="START")
