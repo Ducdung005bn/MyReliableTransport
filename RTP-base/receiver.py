@@ -8,9 +8,6 @@ def parse_packet(packet_bytes):
     pkt_header = PacketHeader(packet_bytes[:16])
     msg = packet_bytes[16:16 + pkt_header.length]
 
-    print(f"Type: {pkt_header.type}")
-    print(f"Message: {msg}")
-
     return pkt_header, msg
 
 def is_valid_checksum(pkt_header, msg):
@@ -24,7 +21,7 @@ def send_ack(s, seq_num, address):
     ack_header = PacketHeader(type=3, seq_num=seq_num, length=0, checksum=0)
     ack_header.checksum = compute_checksum(ack_header / b"")
     s.sendto(bytes(ack_header / b""), address)
-    print(f"==================================== Sending ACK with seq = {seq_num}")
+    #print(f"==================================== Sending ACK with seq = {seq_num}")
 
 def receiver(receiver_ip, receiver_port, window_size):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -35,51 +32,50 @@ def receiver(receiver_ip, receiver_port, window_size):
     received_data = []  # List for storing in-order received data
 
     while True:
-        # Receive a packet (header and message) from the sender
-        packet, address = s.recvfrom(2048) 
+        packet, address = s.recvfrom(2048)
         pkt_header, msg = parse_packet(packet)
-        seq = pkt_header.seq_num
 
         if not is_valid_checksum(pkt_header, msg):
-            print("Checksum mismatch. Dropping packet.")
+            #===========print("Checksum mismatch. Dropping packet.")
             continue
 
-        if pkt_header.type == 0:  # START
-            print("START packet was received.")
+        if pkt_header.type == 0:  # START packet
+            #===========print("\nSTART packet was received.")
             expected_seq += 1
             send_ack(s, expected_seq, address)
             continue
 
-        if pkt_header.type == 1:  # END
-            print("END packet was received.")
-            expected_seq += 1
+        if pkt_header.type == 2:  # DATA packet
+            seq = pkt_header.seq_num
+
+            # Drop packets outside of the receiver's window
+            if seq >= expected_seq + window_size:
+                #===========print(f"Packet with seq = {seq} is outside the window. Dropping.")
+                continue
+
+            # Buffer out-of-order packet and wait for being handled
+            if seq >= expected_seq:
+                if seq not in buffer:
+                    buffer[seq] = msg
+                    #===========print(f"Buffered packet with seq = {seq}")
+
+            # If expected packet is available
+            while expected_seq in buffer:
+                received_data.append(buffer.pop(expected_seq))
+                expected_seq += 1
+
+            # Send cumulative ACK (next expected sequence)
             send_ack(s, expected_seq, address)
 
-        # Check if the sequence number is out of the receiver's window
-        if seq >= expected_seq + window_size:  # If packet is out of window, drop it
-            print(f"Packet with seq = {seq} is out of window. Dropping packet.")
-            continue  # Skip further processing for this packet
+        elif pkt_header.type == 1:  # END packet
+            #===========print("END packet was received.")
+            expected_seq += 1
+            send_ack(s, expected_seq, address)
+            break
 
-        # Buffer the packet if it's not already in the buffer
-        if seq not in buffer:
-            buffer[seq] = msg
-
-        if seq == expected_seq + window_size - 1:
-            consecutive_seq = expected_seq
-            while consecutive_seq in buffer:  # Check if the next expected packet is in the buffer
-                consecutive_seq += 1  # Keep moving forward while we have the next expected packet
-
-            highest_seq = consecutive_seq - 1
-
-            # If there is a consecutive sequence starting from expected_seq
-            if highest_seq >= expected_seq:
-                # Remove in-order packets from buffer and add them to the received_data list
-                for seq_num in range(expected_seq, highest_seq + 1):
-                    received_data.append(buffer.pop(seq_num))  
-
-                # Send an ACK for the next expected sequence number
-                expected_seq = highest_seq + 1
-                send_ack(s, expected_seq, address)  
+    # Output all collected data
+    sys.stdout.buffer.write(b"".join(received_data))
+    sys.stdout.flush()  
 
 
 def main():

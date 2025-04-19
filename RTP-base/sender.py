@@ -18,7 +18,8 @@ def create_packet(seq_num, data, packet_type):
     pkt_header.checksum = compute_checksum(pkt_header / data)
     return pkt_header / data #This helps combine package header and data to create a complete package
 
-def wait_for_ack(sock, timeout = None):
+    
+def wait_for_ack(sock, timeout=0.5):
     #TODO: Wait for the ACK from the receiver. If time's out, return None
     try:
         sock.settimeout(timeout)
@@ -26,8 +27,17 @@ def wait_for_ack(sock, timeout = None):
         ack_seq_num = struct.unpack("!I", data[4:8])[0] #unpack data and use [0] to take ack_seq_num 
         return ack_seq_num
     except socket.timeout:
+        print("Timeout waiting for ACK.")
+        return None
+    except Exception as e:
+        print(f"An error occurred: {e}")
         return None
 
+def retransmit(s, window_start, window_end, chunks, seq_num, receiver_ip, receiver_port):
+    for i in range(window_start, window_end):
+        packet = create_packet(seq_num + i - window_start, chunks[i], packet_type=2)
+        s.sendto(bytes(packet), (receiver_ip, receiver_port))
+    print("Retransmitting due to timeout")
 
 def send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label):
     """TODO: Send start/end message."""
@@ -36,20 +46,17 @@ def send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, dat
 
     if label == "START":
         print(f"Sending {label} packet with seq =", seq_num)
-        ack = wait_for_ack(s, timeout = 0.5) 
+        ack = wait_for_ack(s, timeout=0.5)  # Blocking wait
     else:
         print(f"Sending {label} packet with seq =", seq_num, "waiting for ACK (max 500ms)...")
-        ack = wait_for_ack(s, timeout = 0.5)
+        ack = wait_for_ack(s, timeout=0.5)
 
     if ack is not None:
         print(f"ACK received for {label} packet: {ack}")
-        if label == "END":
-            exit
     else:
-        if label == "START":
-            print(f"No ACK for START packet")
-        else:
-            exit
+        print(f"No ACK for {label} packet.")
+        if label == "END":
+            send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label)
 
 
 def sender(receiver_ip, receiver_port, window_size):
@@ -60,31 +67,32 @@ def sender(receiver_ip, receiver_port, window_size):
     send_control_packet(s, 0, receiver_ip, receiver_port, packet_type=0, data="START", label="START")
 
     # TODO: Enter the message to be sent
-    if sys.stdin.isatty():
-        message = input("Enter the message to send: ") # If it is entered from the command line
-    else:
-        message = sys.stdin.read() # If it is entered from a file
+    message = sys.stdin.read() # It is entered from a file
     max_packet_size = 1472  
     chunks = split_message(message, max_packet_size) # Split the message into chunks
-    
+
     # TODO: initialize values 
     seq_num = 1 #because the seq_num for START packet is 0
     window_start = 0
     window_end = min(window_size, len(chunks)) # the maximum chunks to be sent
 
+    # sequence:     1, 2, 3 , ... 16, 17
+    # window_start: 0, 1, 2,  ... 15, 16
+
     while window_start < len(chunks):
-        for i in range(window_start, window_end):
+        for i in range(window_start, window_end): #not including window_end
             packet = create_packet(seq_num + i - window_start, chunks[i], packet_type=2)
             s.sendto(bytes(packet), (receiver_ip, receiver_port))
             print(f"Sender sent a packet with seq =", seq_num + i - window_start)
+            ack = wait_for_ack(s)
+            print(f"ACK was received: {ack}")
 
 
-        ack = wait_for_ack(s)
-        print(f"ACK was received: {ack}")
-        if ack >= seq_num:
-            window_start = ack
-            seq_num = ack
-            window_end = min(window_start + window_size, len(chunks))
+        print(f"Special ACK was received: {ack}")
+        if ack > seq_num:
+                window_start = ack - 1
+                seq_num = ack
+                window_end = min(window_start + window_size, len(chunks))
 
     send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type=1, data="END", label="END")
     s.close()
