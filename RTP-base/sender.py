@@ -33,12 +33,6 @@ def wait_for_ack(sock, timeout=0.5):
         print(f"An error occurred: {e}")
         return None
 
-def retransmit(s, window_start, window_end, chunks, seq_num, receiver_ip, receiver_port):
-    for i in range(window_start, window_end):
-        packet = create_packet(seq_num + i - window_start, chunks[i], packet_type=2)
-        s.sendto(bytes(packet), (receiver_ip, receiver_port))
-    print("Retransmitting due to timeout")
-
 def send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label):
     """TODO: Send start/end message."""
     packet = create_packet(seq_num, data, packet_type=packet_type)
@@ -55,8 +49,7 @@ def send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, dat
         print(f"ACK received for {label} packet: {ack}")
     else:
         print(f"No ACK for {label} packet.")
-        if label == "END":
-            send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label)
+        send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label)
 
 
 def sender(receiver_ip, receiver_port, window_size):
@@ -86,7 +79,10 @@ def sender(receiver_ip, receiver_port, window_size):
             print(f"Sender sent a packet with seq =", seq_num + i - window_start)
             ack = wait_for_ack(s)
             print(f"ACK was received: {ack}")
-
+        
+        if ack is None: #the first packet isn't received
+            ack = seq_num
+            continue
 
         print(f"Special ACK was received: {ack}")
         if ack > seq_num:

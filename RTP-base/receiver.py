@@ -41,7 +41,7 @@ def receiver(receiver_ip, receiver_port, window_size):
 
         if pkt_header.type == 0:  # START packet
             #===========print("\nSTART packet was received.")
-            expected_seq += 1
+            expected_seq = 1
             send_ack(s, expected_seq, address)
             continue
 
