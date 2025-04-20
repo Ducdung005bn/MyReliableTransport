@@ -34,21 +34,17 @@ def wait_for_ack(sock, timeout=0.5):
         return None
 
 def send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label):
-    """TODO: Send start/end message."""
+    """Send START/END control packet and wait for ACK."""
     packet = create_packet(seq_num, data, packet_type=packet_type)
     s.sendto(bytes(packet), (receiver_ip, receiver_port))
 
-    if label == "START":
-        print(f"Sending {label} packet with seq =", seq_num)
-        ack = wait_for_ack(s, timeout=0.5)  # Blocking wait
-    else:
-        print(f"Sending {label} packet with seq =", seq_num, "waiting for ACK (max 500ms)...")
-        ack = wait_for_ack(s, timeout=0.5)
+    print(f"Sending {label} packet with seq = {seq_num}, waiting for ACK (max 500ms)...")
+    ack = wait_for_ack(s, timeout=0.5)
 
     if ack is not None:
         print(f"ACK received for {label} packet: {ack}")
     else:
-        print(f"No ACK for {label} packet.")
+        print(f"No ACK for {label} packet. Retrying...")
         send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label)
 
 
@@ -82,7 +78,7 @@ def sender(receiver_ip, receiver_port, window_size):
         
         if ack is None: #the first packet isn't received
             ack = seq_num
-            continue
+            continue #Retransmission
 
         print(f"Special ACK was received: {ack}")
         if ack > seq_num:
