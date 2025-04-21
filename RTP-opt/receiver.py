@@ -34,11 +34,11 @@ def receiver(receiver_ip, receiver_port, window_size):
         pkt_header, msg = parse_packet(packet)
 
         if not is_valid_checksum(pkt_header, msg):
-            #===========print("Checksum mismatch. Dropping packet.")
+            #print(f"Checksum mismatch. Dropping packet with sequence {pkt_header.seq_num}")
             continue
 
         if pkt_header.type == 0:  # START packet
-            #===========print("\nSTART packet was received.")
+            #print("\nSTART packet was received.")
             send_ack(s, pkt_header.seq_num, address)
             continue
 
@@ -46,19 +46,20 @@ def receiver(receiver_ip, receiver_port, window_size):
 
             if pkt_header.seq_num not in buffer:
                 buffer[pkt_header.seq_num] = msg
-                #===========print(f"Buffered packet with seq = {seq}")
-
+                #print(f"Buffered packet with seq = {pkt_header.seq_num}")
             # Send ACK
             send_ack(s, pkt_header.seq_num, address)
 
         elif pkt_header.type == 1:  # END packet
-            #===========print("END packet was received.")
+            #print("END packet was received.")
             send_ack(s, pkt_header.seq_num, address)
             break
 
     # Output all collected data
-    sys.stdout.buffer.write(b"".join(buffer))
-    sys.stdout.flush()  
+    for seq_num in sorted(buffer):
+        sys.stdout.buffer.write(buffer[seq_num])
+    sys.stdout.flush()
+
 
 
 def main():
@@ -72,4 +73,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

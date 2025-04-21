@@ -64,6 +64,7 @@ def sender(receiver_ip, receiver_port, window_size):
     seq_num = 1 #because the seq_num for START packet is 0
     window_start = 0
     window_end = min(window_size, len(chunks)) # the maximum chunks to be sent
+    special_ack = 1
 
     # sequence:     1, 2, 3 , ... 16, 17
     # window_start: 0, 1, 2,  ... 15, 16
@@ -75,15 +76,15 @@ def sender(receiver_ip, receiver_port, window_size):
             print(f"Sender sent a packet with seq =", seq_num + i - window_start)
             ack = wait_for_ack(s)
             print(f"ACK was received: {ack}")
-        
-        if ack is None: #the first packet isn't received
-            ack = seq_num
-            continue #Retransmission
 
-        print(f"Special ACK was received: {ack}")
-        if ack > seq_num:
-                window_start = ack - 1
-                seq_num = ack
+            if ack is not None and ack < seq_num + window_size:
+                special_ack = max(special_ack, ack)
+                print(f"Special ACK was received: {special_ack}")
+
+        print(f"Special ACK was finally received: {special_ack}")
+        if special_ack > seq_num:
+                window_start = special_ack - 1
+                seq_num = special_ack
                 window_end = min(window_start + window_size, len(chunks))
 
     send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type=1, data="END", label="END")

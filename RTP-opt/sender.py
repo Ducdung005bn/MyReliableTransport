@@ -55,7 +55,7 @@ def send_packet(s, sequence, packet, receiver_ip, receiver_port):
     if ack is None:
         send_packet(s, sequence, packet, receiver_ip, receiver_port)
     else:
-        print(f"Packet is sent successfully, with sequence = {sequence}")
+        print(f"Packet is sent successfully, with received sequence = {ack}")
 
 
 def sender(receiver_ip, receiver_port, window_size):
@@ -82,8 +82,14 @@ def sender(receiver_ip, receiver_port, window_size):
         for i in range(window_start, window_end): #not including window_end
             packet = create_packet(seq_num + i - window_start, chunks[i], packet_type=2)
             send_packet(s, seq_num + i - window_start, packet, receiver_ip, receiver_port)
-            seq_num += 1
-        
+    
+        # After the window is sent, update sequence numbers
+        packets_sent = window_end - window_start
+        seq_num += packets_sent
+        window_start = window_end
+        window_end = min(window_start + window_size, len(chunks))
+
+
 
     send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type=1, data="END", label="END")
     s.close()
@@ -105,4 +111,3 @@ def main():
 
 if __name__ == "__main__":
     main()  
-
