@@ -33,8 +33,8 @@ def wait_for_ack(sock, timeout=0.5):
         print(f"An error occurred: {e}")
         return None
 
-def send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label):
-    """Send START/END control packet and wait for ACK."""
+def send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label, retry_count=0):
+    """Send START/END control packet and wait for ACK (retry max 5 times if packet_type == 0)."""
     packet = create_packet(seq_num, data, packet_type=packet_type)
     s.sendto(bytes(packet), (receiver_ip, receiver_port))
 
@@ -44,8 +44,11 @@ def send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, dat
     if ack is not None:
         print(f"ACK received for {label} packet: {ack}")
     else:
-        print(f"No ACK for {label} packet. Retrying...")
-        send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label)
+        print(f"No ACK for {label} packet. Retry count = {retry_count}")
+        if packet_type == 1 and retry_count < 5:
+            send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label, retry_count + 1)
+        elif packet_type == 0:
+            send_control_packet(s, seq_num, receiver_ip, receiver_port, packet_type, data, label, retry_count + 1)
 
 
 def send_packet(s, sequence, packet, receiver_ip, receiver_port):

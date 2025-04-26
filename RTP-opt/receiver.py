@@ -40,9 +40,8 @@ def receiver(receiver_ip, receiver_port, window_size):
         if pkt_header.type == 0:  # START packet
             #print("\nSTART packet was received.")
             send_ack(s, pkt_header.seq_num, address)
-            continue
 
-        if pkt_header.type == 2:  # DATA packet
+        elif pkt_header.type == 2:  # DATA packet
 
             if pkt_header.seq_num not in buffer:
                 buffer[pkt_header.seq_num] = msg
